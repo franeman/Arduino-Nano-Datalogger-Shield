@@ -8,40 +8,63 @@
 
 // Define I2C pins
 // Make sure to connect a 10k resister to 5v for SCL and SDA individually as this is required for I2C
-#define SCL A5
-#define SDA A4
+#define SCL A5 // Clock line for I2C
+#define SDA A4 // Data line for I2C
 //Define Clock address
 #define clockAddr 0b1101000 // The address for the clock is binary 1101000, 0b signifies a binary number
 // Define the time
-#define MONTH 5
-#define DATE 6
-#define YEAR 18
-#define DAY 1 // Day of the week (1 is Sunday)
-#define HOURS 21 // in 24hr clock
-#define MINUTES 05
-#define SECONDS 00
+#define MONTH 5 // The month to set the clock to
+#define DATE 6 // The date to set the clock to
+#define YEAR 18 // The year to set the clock to (00-99)
+#define DOW 1 // Day of the week to set the clock to
+#define HOURS 21 // Hour to set the clock to (in 24hr clock)
+#define MINUTES 05 // Minute to set the clock to
+#define SECONDS 00 // Second to set the clock to
 
 // Define SPI pins
-#define SD_CS 10
-#define MOSI 11
-#define MISO 12
-#define SCK 13
+#define SD_CS 10 // SD card chip select pin for SPI
+#define MOSI 11 // Master Out Slave In pin for SPI
+#define MISO 12 // Master In Slave Out pin for SPI
+#define SCK 13 // Serial Clock pin
+
+bool sd = true; // Defaults to having an SD card inserted, if SD cannot be initalized then it will be ignored
 
 void setup() {
   // Initalize needed busses
-  Wire.begin(); // Initialize I2C
-  SetupClock(MONTH, DATE, YEAR, DAY, HOURS, MINUTES, SECONDS);
-  SPI.begin(); // Initialize SPI
-  SD.begin(); // Initialize SD
   Serial.begin(9600); // Initialize serial for display purposes
-
+  Wire.begin(); // Initialize I2C
+  SetupClock(MONTH, DATE, YEAR, DOW, HOURS, MINUTES, SECONDS); // Set the clock date, run this once and then reupload with it commented out
+                                                               // If left uncommented, the clock will always start at that specific date when the arduino gets rebooted
+  
+  SPI.begin(); // Initialize SPI
+  if(!SD.begin(SD_CS)) // Initialize SD
+    {
+      Serial.println("SD failed to initialize!"); // If it couldn't be initialized, then print an error message
+      sd = false;
+    }
+  
   pinMode(SD_CS,OUTPUT); // Set the SD card chip select pin as an output
 }
 
 void loop() {
-  String date = GetDate();
-  Serial.println(date);
-  delay(1000);
+  String date = GetDate(); // Get the date from the clock in text form
+  
+  if(sd) // If we have an sd card
+  {
+    File sdData = SD.open("data.txt", FILE_WRITE); // open data.txt so that we can write to it
+    if(sdData)
+      {
+        sdData.println(date); // Print the date to the data.txt on the sd card
+        sdData.close(); // Close the file to save the changes
+      }
+    else
+      {
+        Serial.println("Couldn't open file from SD card"); // If we couldn't open the file on the sd card, print an error
+      }
+  }
+  
+  Serial.println(date); // Print the date to the serial monitor
+  delay(1000); // Wait a second between reads
 }
 
 void WriteI2C(byte addr, byte reg, byte data) // Writes data to the register of the device
@@ -52,18 +75,18 @@ void WriteI2C(byte addr, byte reg, byte data) // Writes data to the register of 
   Wire.endTransmission(); // Stop sending to the device
 }
 
-void SetupClock(byte month, byte date, byte year, byte day, byte hour, byte minute, byte second) // Set the time for the clock
+void SetupClock(byte month, byte date, byte year, byte dow, byte hour, byte minute, byte second) // Set the time for the clock
 {
   WriteI2C(clockAddr, 0x06, year); // Write the year to the clock
   WriteI2C(clockAddr, 0x05, month); // Write the year to the clock
   WriteI2C(clockAddr, 0x04, date); // Write the year to the clock
-  WriteI2C(clockAddr, 0x03, day); // Write the year to the clock
+  WriteI2C(clockAddr, 0x03, dow); // Write the year to the clock
   WriteI2C(clockAddr, 0x02, hour); // Write the year to the clock
   WriteI2C(clockAddr, 0x01, minute); // Write the year to the clock
   WriteI2C(clockAddr, 0x00, second); // Write the year to the clock
 }
 
-byte BCDtoDecimal(byte bcd)
+byte BCDtoDecimal(byte bcd) // Converts a 1 byte binary coded decimal number to its equivalent decimal number
 {
   byte tens = (bcd & 0b11110000) >> 4; // Get the tens digit
   byte ones = bcd & 0b00001111; // Get the ones digit
@@ -104,10 +127,10 @@ String GetDate() // Returns a string of the date
   GetClockTime(clockData); // Get the data from the clock
   
   String date;
-  for (byte c = 0; c < 7 ; c++)
+  for (byte c = 0; c < 7 ; c++) // For each section of data...
     {
       date = date + String(BCDtoDecimal(clockData[c])); // Add each part onto the end of date, after being converted from BCD to decimal
-      if (c != 6) // If it isn't the last part of the data, put a ':' after
+      if (c != 6) // If it isn't the last part of the data, put a ':' after to separate values
         {
           date = date + ':'; 
         }
