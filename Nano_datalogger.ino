@@ -17,9 +17,9 @@
 #define DATE 6 // The date to set the clock to
 #define YEAR 18 // The year to set the clock to (00-99)
 #define DOW 1 // Day of the week to set the clock to
-#define HOURS 21 // Hour to set the clock to (in 24hr clock)
-#define MINUTES 05 // Minute to set the clock to
-#define SECONDS 00 // Second to set the clock to
+#define HOURS 23 // Hour to set the clock to (in 24hr clock)
+#define MINUTES 14 // Minute to set the clock to
+#define SECONDS 30 // Second to set the clock to
 
 // Define SPI pins
 #define SD_CS 10 // SD card chip select pin for SPI
@@ -77,13 +77,13 @@ void WriteI2C(byte addr, byte reg, byte data) // Writes data to the register of 
 
 void SetupClock(byte month, byte date, byte year, byte dow, byte hour, byte minute, byte second) // Set the time for the clock
 {
-  WriteI2C(clockAddr, 0x06, year); // Write the year to the clock
-  WriteI2C(clockAddr, 0x05, month); // Write the year to the clock
-  WriteI2C(clockAddr, 0x04, date); // Write the year to the clock
-  WriteI2C(clockAddr, 0x03, dow); // Write the year to the clock
-  WriteI2C(clockAddr, 0x02, hour); // Write the year to the clock
-  WriteI2C(clockAddr, 0x01, minute); // Write the year to the clock
-  WriteI2C(clockAddr, 0x00, second); // Write the year to the clock
+  WriteI2C(clockAddr, 0x06, DecimalToBCD(year)); // Write the year to the clock after being converted to BCD
+  WriteI2C(clockAddr, 0x05, DecimalToBCD(month)); // Write the month to the clock after being converted to BCD
+  WriteI2C(clockAddr, 0x04, DecimalToBCD(date)); // Write the date to the clock after being converted to BCD
+  WriteI2C(clockAddr, 0x03, DecimalToBCD(dow)); // Write the day of the week to the clock after being converted to BCD
+  WriteI2C(clockAddr, 0x02, DecimalToBCD(hour)); // Write the hour to the clock after being converted to BCD
+  WriteI2C(clockAddr, 0x01, DecimalToBCD(minute)); // Write the minute to the clock after being converted to BCD
+  WriteI2C(clockAddr, 0x00, DecimalToBCD(second)); // Write the second to the clock after being converted to BCD
 }
 
 byte BCDtoDecimal(byte bcd) // Converts a 1 byte binary coded decimal number to its equivalent decimal number
@@ -94,11 +94,31 @@ byte BCDtoDecimal(byte bcd) // Converts a 1 byte binary coded decimal number to 
   return result;
 }
 
+byte DecimalToBCD(byte decimal)
+{
+  byte tens, ones, result;
+  if(decimal >= 10)
+  {
+    tens = decimal / 10; // Get the value in the tens place
+    ones = decimal - (tens * 10); // Get the value in the ones place
+    tens = tens << 4; // Shift the binary value of the tens place into the tens position for BCD
+    
+  }
+  else
+  {
+    tens = 0;
+    ones = decimal;
+  }
+  
+  result = tens | ones; // AND both values together to get the complete BCD value
+  return result;
+}
+
 byte GetOneByte(byte addr, byte reg) // Since all clock data is only 1 byte long, we only need to request 1 byte of data at a time
 // addr is the address of the device and reg is the register that the data is held in
 {  
   Wire.beginTransmission(addr); // Begin communication with the device
-  Wire.write(reg); // Ask for the data in the specified register
+  Wire.write(reg); // Specify which register to retrive date from
   Wire.endTransmission(); // Stop sending to the device
 
   Wire.requestFrom(addr, 1); // Request 1 byte of data from the device
@@ -112,13 +132,13 @@ byte GetOneByte(byte addr, byte reg) // Since all clock data is only 1 byte long
 void GetClockTime(byte data[7]) // Uses a 7 byte array to store the clock data
 {
   // From 0-6, the order is Year, Month, Date, Day of the week, Hours, Minutes, Seconds
-  data[0] = GetOneByte(clockAddr,0x06); // Get Year
-  data[1] = GetOneByte(clockAddr,0x05); // Get Month
-  data[2] = GetOneByte(clockAddr,0x04); // Get Date
-  data[3] = GetOneByte(clockAddr,0x03); // Get Day of the week
-  data[4] = GetOneByte(clockAddr,0x02); // Get Hours
-  data[5] = GetOneByte(clockAddr,0x01); // Get Minutes
-  data[6] = GetOneByte(clockAddr,0x00); // Get Seconds
+  data[0] = BCDtoDecimal(GetOneByte(clockAddr,0x06)); // Get Year and convert it to decimal
+  data[1] = BCDtoDecimal(GetOneByte(clockAddr,0x05)); // Get Month and convert it to decimal
+  data[2] = BCDtoDecimal(GetOneByte(clockAddr,0x04)); // Get Date and convert it to decimal
+  data[3] = BCDtoDecimal(GetOneByte(clockAddr,0x03)); // Get Day of the week and convert it to decimal
+  data[4] = BCDtoDecimal(GetOneByte(clockAddr,0x02)); // Get Hours and convert it to decimal
+  data[5] = BCDtoDecimal(GetOneByte(clockAddr,0x01)); // Get Minutes and convert it to decimal
+  data[6] = BCDtoDecimal(GetOneByte(clockAddr,0x00)); // Get Seconds and convert it to decimal
 }
 
 String GetDate() // Returns a string of the date
@@ -129,7 +149,7 @@ String GetDate() // Returns a string of the date
   String date;
   for (byte c = 0; c < 7 ; c++) // For each section of data...
     {
-      date = date + String(BCDtoDecimal(clockData[c])); // Add each part onto the end of date, after being converted from BCD to decimal
+      date = date + String(clockData[c]); // Add each part onto the end of date, after being converted from BCD to decimal
       if (c != 6) // If it isn't the last part of the data, put a ':' after to separate values
         {
           date = date + ':'; 
