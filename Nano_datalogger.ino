@@ -7,6 +7,7 @@
 #include <SD.h> // Used for interacting with the SD card
 
 // Define I2C pins
+// Make sure to connect a 10k resister to 5v for SCL and SDA individually as this is required for I2C
 #define SCL A5
 #define SDA A4
 //Define Clock address
