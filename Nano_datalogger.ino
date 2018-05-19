@@ -110,7 +110,7 @@ byte DecimalToBCD(byte decimal)
     ones = decimal;
   }
   
-  result = tens | ones; // AND both values together to get the complete BCD value
+  result = tens | ones; // OR both values together to get the complete BCD value
   return result;
 }
 
